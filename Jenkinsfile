@@ -1,12 +1,15 @@
 // ============================================
 // Jenkins CI/CD Pipeline
+// Linux Compatible Version
 // UI + API Hybrid Automation Framework
 // ============================================
 
 pipeline {
+
     agent any
 
     parameters {
+
         choice(
             name: 'BROWSER',
             choices: ['chrome', 'firefox', 'edge'],
@@ -22,17 +25,18 @@ pipeline {
         booleanParam(
             name: 'HEADLESS',
             defaultValue: true,
-            description: 'Run in headless mode'
+            description: 'Run browser in headless mode'
         )
 
         string(
             name: 'PARALLEL_WORKERS',
-            defaultValue: '4',
+            defaultValue: '2',
             description: 'Number of parallel workers'
         )
     }
 
     environment {
+
         TEST_ENV = "${params.ENV}"
         BROWSER = "${params.BROWSER}"
         HEADLESS = "${params.HEADLESS}"
@@ -42,10 +46,25 @@ pipeline {
     stages {
 
         // ============================================
+        // Clean Workspace
+        // ============================================
+
+        stage('Clean Workspace') {
+
+            steps {
+
+                cleanWs()
+
+                echo 'Workspace cleaned successfully'
+            }
+        }
+
+        // ============================================
         // Checkout Source Code
         // ============================================
 
         stage('Checkout') {
+
             steps {
 
                 checkout([
@@ -56,7 +75,7 @@ pipeline {
                     ]]
                 ])
 
-                echo "Code checked out successfully from GitHub repository"
+                echo 'Code checked out successfully from GitHub repository'
             }
         }
 
@@ -65,29 +84,21 @@ pipeline {
         // ============================================
 
         stage('Setup Environment') {
+
             steps {
 
-                script {
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
 
-                    if (isUnix()) {
+                    python --version
+                    pip --version
 
-                        sh '''
-                            python3 -m venv venv
-                            . venv/bin/activate
-                            pip install --upgrade pip
-                            pip install -r requirements.txt
-                        '''
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
 
-                    } else {
-
-                        bat '''
-                            python -m venv venv
-                            call venv\\Scripts\\activate
-                            pip install --upgrade pip
-                            pip install -r requirements.txt
-                        '''
-                    }
-                }
+                echo 'Python environment setup completed'
             }
         }
 
@@ -96,66 +107,95 @@ pipeline {
         // ============================================
 
         stage('API Health Check') {
+
             steps {
 
-                script {
+                sh '''
+                    . venv/bin/activate
 
-                    if (isUnix()) {
+                    python -c "
+import requests
+r = requests.get('https://practice.expandtesting.com/notes/api/health-check')
+print(f'API Status Code: {r.status_code}')
+"
+                '''
 
-                        sh '''
-                            . venv/bin/activate
-                            python -c "import requests; r=requests.get('https://practice.expandtesting.com/notes/api/health-check'); print(f'API Status: {r.status_code}')"
-                        '''
-
-                    } else {
-
-                        bat '''
-                            call venv\\Scripts\\activate
-                            python -c "import requests; r=requests.get('https://practice.expandtesting.com/notes/api/health-check'); print(f'API Status: {r.status_code}')"
-                        '''
-                    }
-                }
+                echo 'API health check completed'
             }
         }
 
         // ============================================
-        // Run Complete Test Suite
+        // Run Automation Tests
         // ============================================
 
         stage('Run Tests') {
 
             steps {
 
-                script {
+                sh """
+                    . venv/bin/activate
 
-                    def cmd = """
                     pytest tests/ \
                     -v \
+                    -s \
+                    --tb=short \
                     --junitxml=reports/results.xml \
                     --alluredir=reports/allure-results \
+                    --html=reports/report.html \
+                    --self-contained-html \
                     -n ${params.PARALLEL_WORKERS} \
+                    --dist=loadfile \
                     --reruns=2 \
                     --reruns-delay=2
-                    """
-
-                    runTests(cmd)
-                }
+                """
             }
         }
 
         // ============================================
-        // Generate Allure Report
+        // Generate Allure HTML Report
         // ============================================
 
         stage('Generate Allure Report') {
 
             steps {
 
-                allure(
-                    includeProperties: false,
-                    jdk: '',
-                    results: [[path: 'reports/allure-results']]
-                )
+                sh '''
+                    . venv/bin/activate
+
+                    allure generate reports/allure-results \
+                    -o reports/allure-report \
+                    --clean
+                '''
+
+                echo 'Allure report generated successfully'
+            }
+        }
+
+        // ============================================
+        // Publish HTML Reports
+        // ============================================
+
+        stage('Publish Reports') {
+
+            steps {
+
+                publishHTML([
+                    allowMissing: true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'reports',
+                    reportFiles: 'report.html',
+                    reportName: 'Pytest HTML Report'
+                ])
+
+                publishHTML([
+                    allowMissing: true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'reports/allure-report',
+                    reportFiles: 'index.html',
+                    reportName: 'Allure HTML Report'
+                ])
             }
         }
     }
@@ -183,39 +223,17 @@ pipeline {
 
         success {
 
-            echo ' All tests PASSED!'
+            echo '✅ All tests PASSED!'
         }
 
         failure {
 
-            echo ' Some tests FAILED. Check Allure report for details.'
+            echo '❌ Some tests FAILED. Check reports for details.'
         }
 
         cleanup {
 
             cleanWs()
         }
-    }
-}
-
-// ============================================
-// Helper Function
-// ============================================
-
-def runTests(String command) {
-
-    if (isUnix()) {
-
-        sh """
-            . venv/bin/activate
-            ${command}
-        """
-
-    } else {
-
-        bat """
-            call venv\\Scripts\\activate
-            ${command}
-        """
     }
 }
