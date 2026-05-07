@@ -378,7 +378,7 @@ class BasePage:
     # SELF-HEALING LOCATOR (AGENTIC AUTOMATION)
     # ============================================
 
-   def _self_heal_locator(self, original_locator: tuple):
+    def _self_heal_locator(self, original_locator: tuple):
     """
     Attempts alternative locator strategies when original locator fails.
     Implements safe self-healing without using split().
