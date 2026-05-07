@@ -129,12 +129,12 @@ pipeline {
                 script {
 
                     def cmd = """
-                    pytest tests/ ^
-                    -v ^
-                    --junitxml=reports/results.xml ^
-                    --alluredir=reports/allure-results ^
-                    -n ${params.PARALLEL_WORKERS} ^
-                    --reruns=2 ^
+                    pytest tests/ \
+                    -v \
+                    --junitxml=reports/results.xml \
+                    --alluredir=reports/allure-results \
+                    -n ${params.PARALLEL_WORKERS} \
+                    --reruns=2 \
                     --reruns-delay=2
                     """
 
