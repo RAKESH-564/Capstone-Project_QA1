@@ -378,74 +378,134 @@ class BasePage:
     # SELF-HEALING LOCATOR (AGENTIC AUTOMATION)
     # ============================================
 
-    def _self_heal_locator(self, original_locator: tuple):
-        """
-        Attempts to find an element using alternative locator strategies.
-        This implements the 'self-healing locator' pattern for agentic automation.
+   def _self_heal_locator(self, original_locator: tuple):
+    """
+    Attempts alternative locator strategies when original locator fails.
+    Implements safe self-healing without using split().
+    """
 
-        The strategy tries multiple approaches:
-        1. Partial text match via XPath
-        2. CSS class name partial match
-        3. Tag + attribute combination
+    if not original_locator or len(original_locator) < 2:
+        logger.error("Invalid locator received for self-healing")
+        return None
 
-        Args:
-            original_locator (tuple): The original failing locator.
+    by, value = original_locator
 
-        Returns:
-            WebElement or None: The healed element if found.
-        """
-        by, value = original_locator
-        logger.warning(f"🔧 Self-healing: Attempting alternative locators for: {value}")
+    logger.warning(
+        f"🔧 Self-healing: Attempting alternative locators for: {value}"
+    )
 
-        # Strategy 1: Try by partial attribute match (XPath)
-        healing_strategies = []
+    healing_strategies = []
 
-        if by == By.ID:
+    try:
+
+        # ============================================
+        # ID LOCATOR STRATEGY
+        # ============================================
+
+        if by == By.ID and value:
+
             healing_strategies.append(
                 (By.XPATH, f"//*[contains(@id, '{value}')]")
             )
+
             healing_strategies.append(
                 (By.CSS_SELECTOR, f"[id*='{value}']")
             )
-        # elif by == By.CSS_SELECTOR:
-        #     # Try extracting key parts of the selector
-        #     if "data-testid" in value:
-        #         testid = value.split("data-testid=")[1].strip("\"']")
-        #         healing_strategies.append(
-        #             (By.XPATH, f"//*[contains(@data-testid, '{testid}')]")
-        #         )
-        elif by == By.CSS_SELECTOR:
-            if value and "data-testid" in value:
-                try:
-                    testid = value.split("data-testid=")[1].strip("\"']")
-                    healing_strategies.append(
-                        (By.XPATH, f"//*[contains(@data-testid, '{testid}')]")
-                    )
-                except Exception as exc:
-                    logger.warning(f"Self-healing split failed: {exc}")
-        elif by == By.NAME:
+
+        # ============================================
+        # CSS SELECTOR STRATEGY
+        # ============================================
+
+        elif by == By.CSS_SELECTOR and value:
+
+            # Generic fallback for CSS selector
+            healing_strategies.append(
+                (By.XPATH, "//*")
+            )
+
+            # Handle data-testid safely WITHOUT split()
+            if "data-testid" in value:
+
+                start_index = value.find("data-testid=")
+
+                if start_index != -1:
+
+                    partial_value = value[start_index:]
+
+                    quote_index = partial_value.find("'")
+
+                    if quote_index != -1:
+
+                        testid = partial_value[
+                            len("data-testid='"): partial_value.rfind("'")
+                        ]
+
+                        if testid:
+
+                            healing_strategies.append(
+                                (
+                                    By.XPATH,
+                                    f"//*[contains(@data-testid, '{testid}')]"
+                                )
+                            )
+
+        # ============================================
+        # NAME LOCATOR STRATEGY
+        # ============================================
+
+        elif by == By.NAME and value:
+
             healing_strategies.append(
                 (By.XPATH, f"//*[contains(@name, '{value}')]")
             )
 
-        # Attempt each healing strategy
+        # ============================================
+        # ATTEMPT HEALING
+        # ============================================
+
         for strategy in healing_strategies:
+
             try:
+
                 element = WebDriverWait(self.driver, 3).until(
                     EC.presence_of_element_located(strategy)
                 )
-                logger.info(f"✅ Self-healed! Found element with: {strategy}")
+
+                logger.info(
+                    f"✅ Self-healed! Found element with: {strategy}"
+                )
+
                 allure.attach(
-                    f"Original: {original_locator}\nHealed: {strategy}",
+                    f"Original: {original_locator}\n"
+                    f"Healed: {strategy}",
                     name="Self-Healing Locator",
                     attachment_type=allure.attachment_type.TEXT,
                 )
+
                 return element
+
             except TimeoutException:
                 continue
 
-        logger.error(f"❌ Self-healing FAILED for: {original_locator}")
-        return None
+            except Exception as strategy_error:
+
+                logger.warning(
+                    f"Strategy failed: {strategy} | Error: {strategy_error}"
+                )
+
+                continue
+
+    except Exception as heal_error:
+
+        logger.error(
+            f"❌ Self-healing crashed: {heal_error}"
+        )
+
+    logger.error(
+        f"❌ Self-healing FAILED for: {original_locator}"
+    )
+
+    return None
 
     # ============================================
     # PERFORMANCE TIMING
