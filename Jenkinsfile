@@ -138,7 +138,8 @@ print(f'API Status Code: {r.status_code}')
                     pytest tests/ \
                     -v \
                     -s \
-                    --tb=short \
+                    --tb=long \
+                    --x 
                     --junitxml=reports/results.xml \
                     --alluredir=reports/allure-results \
                     --html=reports/report.html \
