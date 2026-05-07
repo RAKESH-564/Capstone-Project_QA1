@@ -139,7 +139,7 @@ print(f'API Status Code: {r.status_code}')
                     -v \
                     -s \
                     --tb=long \
-                    --x \
+                    -x \
                     --junitxml=reports/results.xml \
                     --alluredir=reports/allure-results \
                     --html=reports/report.html \
