@@ -71,7 +71,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/RAKESH-564/Capstone-Project_QA1.git'
+                        url: 'https://github.com/RAKESH-564/Notes_Automation_E2E_Framework.git'
                     ]]
                 ])
 
